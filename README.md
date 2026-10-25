@@ -10,7 +10,7 @@ This atlas vs the Gemini 4 Argon reference:
 
 ![Side-by-side comparison of this atlas and the Gemini 4 Argon Seven Wonders demo](assets/comparison.gif)
 
-Reference: https://gemini-4-argon.vercel.app/tests/gemini-4-argon-high-seven-wonders/index.html
+Gemini 4 Argon reference: [https://gemini-4-argon.vercel.app/tests/gemini-4-argon-high-seven-wonders/index.html](https://gemini-4-argon.vercel.app/tests/gemini-4-argon-high-seven-wonders/index.html)
 
 ## Controls
 

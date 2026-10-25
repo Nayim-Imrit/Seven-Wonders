@@ -318,13 +318,18 @@
       position: absolute;
       right: 18px;
       bottom: calc(86px + var(--safe-bottom));
-      pointer-events: none;
+      pointer-events: auto;
       font-size: 10px;
       color: rgba(248,250,252,0.45);
       letter-spacing: 0.04em;
       text-align: right;
       line-height: 1.5;
     }
+    .credits a {
+      color: var(--color-accent);
+      text-decoration: none;
+    }
+    .credits a:hover { text-decoration: underline; }
 
     .vignette {
       position: fixed;
@@ -464,7 +469,8 @@
 
     <div class="credits">
       Model: monkeycode-pro/grok-4.6<br />
-      Tokens: ~52k in / ~18k out &middot; 2026-10-25
+      Tokens: ~52k in / ~18k out &middot; 2026-10-25<br />
+      Gemini 4 Argon: <a href="https://gemini-4-argon.vercel.app/tests/gemini-4-argon-high-seven-wonders/index.html" target="_blank" rel="noopener noreferrer">gemini-4-argon.vercel.app</a>
     </div>
 
     <nav class="nav-dock glass">
