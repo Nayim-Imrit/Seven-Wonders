@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B1220" />
+  <title>Sanctuary of the Seven Wonders — Interactive 3D Atlas</title>
+  <meta name="description" content="Explore the Seven Wonders of the World across a living 3D archipelago. Fly to each monument, toggle golden hour, and take a guided tour." />
+  <!--
+    Interactive 3D World Atlas: The Sanctuary of the Seven Wonders
+    Model: monkeycode-ai/monkeycode-pro/grok-4.6
+    Tokens taken: ~52000 input / ~18000 output
+    Time: 2026-10-25
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --color-primary: #D97706;
+      --color-secondary: #F59E0B;
+      --color-accent: #7DD3FC;
+      --color-indigo: #6366F1;
+      --color-background: #0B1220;
+      --color-foreground: #F8FAFC;
+      --color-muted: rgba(226, 232, 240, 0.62);
+      --color-border: rgba(253, 230, 138, 0.18);
+      --glass: rgba(11, 18, 32, 0.58);
+      --glass-strong: rgba(11, 18, 32, 0.78);
+      --glow: 0 0 24px rgba(217, 119, 6, 0.35);
+      --radius: 16px;
+      --easing: cubic-bezier(0.16, 1, 0.3, 1);
+      --font-display: "Cinzel", serif;
+      --font-hud: "Orbitron", sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #061018;
+      color: var(--color-foreground);
+      font-family: var(--font-mono);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    canvas#scene {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 20;
+      transition: opacity 280ms var(--easing);
+    }
+    #hud.hidden { opacity: 0; pointer-events: none; }
+
+    .glass {
+      background: var(--glass);
+      backdrop-filter: blur(18px) saturate(140%);
+      -webkit-backdrop-filter: blur(18px) saturate(140%);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--glow), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    header.topbar {
+      position: absolute;
+      top: calc(18px + var(--safe-top));
+      left: 18px;
+      right: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      pointer-events: none;
+    }
+
+    .brand {
+      pointer-events: auto;
+      padding: 14px 18px 12px;
+      border-radius: var(--radius);
+      max-width: min(520px, 58vw);
+      position: relative;
+      overflow: hidden;
+    }
+    .brand::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 3px;
+      background: linear-gradient(180deg, var(--color-secondary), var(--color-indigo));
+    }
+    .eyebrow {
+      font-family: var(--font-hud);
+      font-size: 10px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--color-secondary);
+    }
+    .brand h1 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: clamp(18px, 2.4vw, 28px);
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+      margin-top: 4px;
+    }
+    .brand p {
+      margin-top: 6px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--color-muted);
+      max-width: 46ch;
+    }
+
+    .toolbar {
+      pointer-events: auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      max-width: min(640px, 100%);
+    }
+
+    button {
+      font-family: var(--font-hud);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-foreground);
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      padding: 10px 14px;
+      min-height: 44px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: auto;
+      transition: transform 180ms var(--easing), background 180ms var(--easing), border-color 180ms var(--easing), box-shadow 180ms var(--easing);
+    }
+    button svg { width: 16px; height: 16px; flex-shrink: 0; }
+    button:hover {
+      background: rgba(217, 119, 6, 0.18);
+      border-color: rgba(245, 158, 11, 0.55);
+      box-shadow: 0 0 18px rgba(217, 119, 6, 0.25);
+    }
+    button:focus-visible {
+      outline: 2px solid var(--color-secondary);
+      outline-offset: 3px;
+    }
+    button:active { transform: scale(0.97); }
+    button.active {
+      background: linear-gradient(180deg, rgba(217,119,6,0.35), rgba(99,102,241,0.22));
+      border-color: var(--color-secondary);
+      box-shadow: var(--glow);
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .jumps {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .jumps button {
+      width: 44px;
+      padding: 0;
+      justify-content: center;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+
+    aside.card {
+      position: absolute;
+      top: calc(132px + var(--safe-top));
+      right: 18px;
+      width: min(360px, calc(100vw - 36px));
+      pointer-events: auto;
+      border-radius: 20px;
+      padding: 20px 20px 16px;
+      transform: translateX(24px);
+      opacity: 0;
+      transition: transform 320ms var(--easing), opacity 280ms var(--easing);
+    }
+    aside.card.open {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    .card-kicker {
+      font-family: var(--font-hud);
+      font-size: 10px;
+      letter-spacing: 0.26em;
+      color: var(--color-accent);
+      text-transform: uppercase;
+    }
+    .card h2 {
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 700;
+      margin: 8px 0 2px;
+      line-height: 1.15;
+    }
+    .card .subtitle {
+      color: var(--color-secondary);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .card .bio {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--color-muted);
+      margin-bottom: 14px;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .meta dl {
+      background: rgba(2, 6, 23, 0.35);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .meta dt {
+      font-family: var(--font-hud);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+    }
+    .meta dd {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--color-foreground);
+    }
+
+    .nav-dock {
+      position: absolute;
+      left: 50%;
+      bottom: calc(18px + var(--safe-bottom));
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+      padding: 8px;
+      border-radius: 999px;
+    }
+    .nav-dock button { padding: 12px 18px; }
+    .nav-dock .world {
+      background: linear-gradient(180deg, rgba(99,102,241,0.28), rgba(217,119,6,0.22));
+    }
+
+    .hints {
+      position: absolute;
+      left: 18px;
+      bottom: calc(18px + var(--safe-bottom));
+      pointer-events: none;
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-size: 11px;
+      color: var(--color-muted);
+      line-height: 1.7;
+      max-width: 280px;
+    }
+    .hints kbd {
+      font-family: var(--font-hud);
+      font-size: 10px;
+      border: 1px solid var(--color-border);
+      border-bottom-width: 2px;
+      border-radius: 6px;
+      padding: 1px 6px;
+      color: var(--color-secondary);
+      margin-right: 4px;
+    }
+
+    .status {
+      position: absolute;
+      left: 18px;
+      top: calc(132px + var(--safe-top));
+      pointer-events: none;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      min-width: 180px;
+    }
+    .status .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      color: var(--color-muted);
+    }
+    .status .row b { color: var(--color-foreground); font-weight: 500; }
+    .scan {
+      height: 2px;
+      margin-top: 8px;
+      background: linear-gradient(90deg, transparent, var(--color-secondary), transparent);
+      animation: scan 2.4s linear infinite;
+    }
+
+    .credits {
+      position: absolute;
+      right: 18px;
+      bottom: calc(86px + var(--safe-bottom));
+      pointer-events: none;
+      font-size: 10px;
+      color: rgba(248,250,252,0.45);
+      letter-spacing: 0.04em;
+      text-align: right;
+      line-height: 1.5;
+    }
+
+    .vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 12;
+      background:
+        radial-gradient(ellipse at center, transparent 42%, rgba(2,6,23,0.55) 100%),
+        linear-gradient(180deg, rgba(2,6,23,0.18), transparent 18%, transparent 78%, rgba(2,6,23,0.28));
+    }
+
+    .loader {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 50% 40%, #152238, #05080f 70%);
+      transition: opacity 600ms var(--easing);
+    }
+    .loader.done { opacity: 0; pointer-events: none; }
+    .loader-inner { text-align: center; }
+    .ring {
+      width: 72px; height: 72px; margin: 0 auto 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(245,158,11,0.15);
+      border-top-color: var(--color-secondary);
+      animation: spin 1s linear infinite;
+    }
+    .loader h2 {
+      font-family: var(--font-display);
+      font-size: 22px;
+      letter-spacing: 0.08em;
+    }
+    .loader p {
+      margin-top: 8px;
+      font-family: var(--font-hud);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      color: var(--color-secondary);
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes scan { from { transform: translateX(-40%); } to { transform: translateX(40%); } }
+
+    @media (max-width: 860px) {
+      header.topbar { flex-direction: column; }
+      .brand { max-width: 100%; }
+      aside.card {
+        top: auto;
+        bottom: calc(92px + var(--safe-bottom));
+        right: 12px;
+        left: 12px;
+        width: auto;
+      }
+      .hints, .status, .credits { display: none; }
+      .toolbar { width: 100%; justify-content: flex-start; }
+      .nav-dock { width: calc(100% - 24px); justify-content: space-between; }
+      .nav-dock button { flex: 1; justify-content: center; padding: 12px 8px; font-size: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="scene" aria-label="Interactive 3D atlas of the Seven Wonders"></canvas>
+  <div class="vignette"></div>
+
+  <div class="loader" id="loader">
+    <div class="loader-inner">
+      <div class="ring" aria-hidden="true"></div>
+      <h2>Celestial Armillary Plaza</h2>
+      <p>ALIGNING THE ATLAS</p>
+    </div>
+  </div>
+
+  <div id="hud">
+    <header class="topbar">
+      <div class="brand glass">
+        <div class="eyebrow">Interactive 3D World Atlas</div>
+        <h1>Sanctuary of the Seven Wonders</h1>
+        <p>Drag to orbit, scroll to zoom, right-drag to pan. Click a monument or pin to fly in.</p>
+      </div>
+      <div class="toolbar">
+        <button id="btnTour" type="button" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 4v16l12-8z"/></svg>
+          Guided Tour
+        </button>
+        <button id="btnHour" type="button" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4"/></svg>
+          Golden Hour
+        </button>
+        <button id="btnPins" type="button" class="active" aria-pressed="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.2"/></svg>
+          Pins
+        </button>
+        <button id="btnHud" type="button" class="active" aria-pressed="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8"/></svg>
+          HUD
+        </button>
+        <div class="jumps" id="jumps" aria-label="Quick jump"></div>
+      </div>
+    </header>
+
+    <div class="status glass">
+      <div class="row"><span>SECTOR</span><b id="stSector">HUB-00</b></div>
+      <div class="row"><span>ALTITUDE</span><b id="stAlt">42.0 km</b></div>
+      <div class="row"><span>LIGHT</span><b id="stLight">NOON</b></div>
+      <div class="scan"></div>
+    </div>
+
+    <aside class="card glass" id="card" aria-live="polite">
+      <div class="card-kicker" id="cardKicker">World Overview</div>
+      <h2 id="cardTitle">Sanctuary of the Seven Wonders</h2>
+      <div class="subtitle" id="cardSub">The Celestial Compass Archipelago</div>
+      <p class="bio" id="cardBio">Seven monumental achievements stand around the Celestial Armillary Plaza. Select a Wonder or click its monument to inspect the architecture.</p>
+      <div class="meta">
+        <dl><dt>Era / Built</dt><dd id="mEra">70 AD – 1653 AD</dd></dl>
+        <dl><dt>Civilization</dt><dd id="mCiv">Global Heritage</dd></dl>
+        <dl><dt>Primary Material</dt><dd id="mMat">Stone, Marble &amp; Brick</dd></dl>
+        <dl><dt>Biome</dt><dd id="mBio">7 Distinct Isles</dd></dl>
+      </div>
+    </aside>
+
+    <div class="hints glass">
+      <div><kbd>Drag</kbd> Orbit</div>
+      <div><kbd>Scroll</kbd> Zoom</div>
+      <div><kbd>RMB</kbd> Pan</div>
+      <div><kbd>0–7</kbd> Jump</div>
+      <div><kbd>T</kbd> Time &nbsp;<kbd>G</kbd> Tour</div>
+    </div>
+
+    <div class="credits">
+      Model: monkeycode-pro/grok-4.6<br />
+      Tokens: ~52k in / ~18k out &middot; 2026-10-25
+    </div>
+
+    <nav class="nav-dock glass">
+      <button id="btnPrev" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 6l-6 6 6 6"/></svg>
+        Previous
+      </button>
+      <button id="btnWorld" class="world" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
+        World View
+      </button>
+      <button id="btnNext" type="button">
+        Next
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </nav>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const WORLD = {
+      id: 0,
+      code: "HUB-00",
+      name: "Sanctuary of the Seven Wonders",
+      subtitle: "The Celestial Compass Archipelago",
+      kicker: "World Overview",
+      era: "70 AD – 1653 AD",
+      civ: "Global Heritage",
+      material: "Stone, Marble & Brick",
+      biome: "Seven Distinct Isles",
+      bio: "Seven monumental achievements of human architecture stand united around the Celestial Armillary Plaza. Select any Wonder or click its monument to fly in for inspection.",
+      color: 0xd97706,
+      cam: new THREE.Vector3(0, 46, 58),
+      look: new THREE.Vector3(0, 2, 0)
+    };
+
+    const WONDERS = [
+      {
+        id: 1, code: "WND-01", name: "Great Wall of China", subtitle: "The Dragon's Spine",
+        kicker: "Wonder 01 / 07", era: "7th c. BC – 17th c. AD", civ: "Imperial China",
+        material: "Rammed earth, brick & stone", biome: "Misty mountain ridges",
+        bio: "A sinuous fortification riding clouded ridgelines. Watchtowers punctuate the battlements like vertebrae of a sleeping dragon.",
+        color: 0x6b8f71, sand: 0x4a6b52, rock: 0x8a8f7a,
+        angle: 0, radius: 34
+      },
+      {
+        id: 2, code: "WND-02", name: "Petra", subtitle: "The Rose City",
+        kicker: "Wonder 02 / 07", era: "c. 312 BC", civ: "Nabataean Kingdom",
+        material: "Rose sandstone", biome: "Desert canyon siq",
+        bio: "A treasury facade carved from living rose-red cliff. Columns and pediment emerge from the canyon wall as if the mountain itself were architecture.",
+        color: 0xc47a5a, sand: 0xb86a4a, rock: 0x8a4a38,
+        angle: Math.PI * 2 / 7, radius: 34
+      },
+      {
+        id: 3, code: "WND-03", name: "Christ the Redeemer", subtitle: "Corcovado Beacon",
+        kicker: "Wonder 03 / 07", era: "1931 AD", civ: "Brazil / Art Deco",
+        material: "Reinforced concrete & soapstone", biome: "Tropical rainforest peak",
+        bio: "Arms outstretched above a verdant massif. The statue crowns Corcovado like a lighthouse of stone and sky.",
+        color: 0x3d8b5a, sand: 0x2f6b44, rock: 0xcfc8b8,
+        angle: Math.PI * 4 / 7, radius: 34
+      },
+      {
+        id: 4, code: "WND-04", name: "Machu Picchu", subtitle: "Citadel of the Clouds",
+        kicker: "Wonder 04 / 07", era: "c. 1450 AD", civ: "Inca Empire",
+        material: "Ashlar granite", biome: "Andean cloud forest",
+        bio: "Terraces step down a saddle between peaks. Dry-stone palaces lock together without mortar, a city tuned to mountain and mist.",
+        color: 0x5f8a62, sand: 0x7a8a6a, rock: 0x9aa08c,
+        angle: Math.PI * 6 / 7, radius: 34
+      },
+      {
+        id: 5, code: "WND-05", name: "Chichen Itza", subtitle: "El Castillo",
+        kicker: "Wonder 05 / 07", era: "c. 600–1200 AD", civ: "Maya",
+        material: "Limestone", biome: "Yucatan jungle karst",
+        bio: "A stepped pyramid calibrated to equinox light. Serpent shadows descend the northern stair as jungle canopy rings the plaza.",
+        color: 0xc4a574, sand: 0xb08a58, rock: 0x8c6b3e,
+        angle: Math.PI * 8 / 7, radius: 34
+      },
+      {
+        id: 6, code: "WND-06", name: "Colosseum", subtitle: "Flavian Amphitheatre",
+        kicker: "Wonder 06 / 07", era: "70–80 AD", civ: "Roman Empire",
+        material: "Travertine, tuff & brick", biome: "Mediterranean hill",
+        bio: "An elliptical arena of stacked arches. Three orders of engaged columns rise above an ochre piazza, still echoing the roar of Rome.",
+        color: 0xc4a882, sand: 0xb3926a, rock: 0xa88868,
+        angle: Math.PI * 10 / 7, radius: 34
+      },
+      {
+        id: 7, code: "WND-07", name: "Taj Mahal", subtitle: "Crown of the Palace",
+        kicker: "Wonder 07 / 07", era: "1632–1653 AD", civ: "Mughal Empire",
+        material: "Makrana marble", biome: "Yamuna garden isle",
+        bio: "A marble mausoleum mirrored in a long reflecting pool. Four minarets frame an onion dome that gathers dawn like a lantern.",
+        color: 0xd8efe4, sand: 0x7aa87a, rock: 0xf2f0ea,
+        angle: Math.PI * 12 / 7, radius: 34
+      }
+    ];
+
+    const canvas = document.getElementById("scene");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x7ec8e3, 0.0085);
+
+    const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 400);
+    camera.position.copy(WORLD.cam);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 8;
+    controls.maxDistance = 110;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.target.copy(WORLD.look);
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.35;
+
+    const clock = new THREE.Clock();
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const clickables = [];
+    const pinGroup = new THREE.Group();
+    scene.add(pinGroup);
+
+    let golden = false;
+    let selected = 0;
+    let touring = false;
+    let tourTimer = 0;
+    let fly = null;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const sun = new THREE.DirectionalLight(0xfff1d6, 1.35);
+    sun.position.set(40, 55, 22);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 5;
+    sun.shadow.camera.far = 160;
+    sun.shadow.camera.left = -70;
+    sun.shadow.camera.right = 70;
+    sun.shadow.camera.top = 70;
+    sun.shadow.camera.bottom = -70;
+    sun.shadow.bias = -0.00025;
+    scene.add(sun);
+    const sunTarget = new THREE.Object3D();
+    sunTarget.position.set(0, 0, 0);
+    scene.add(sunTarget);
+    sun.target = sunTarget;
+
+    const hemi = new THREE.HemisphereLight(0x9fd7ff, 0x3a4a2a, 0.55);
+    scene.add(hemi);
+    const ambient = new THREE.AmbientLight(0x6a7a90, 0.28);
+    scene.add(ambient);
+    const rim = new THREE.PointLight(0x7dd3fc, 0.55, 80);
+    rim.position.set(-18, 14, -10);
+    scene.add(rim);
+    const plazaLight = new THREE.PointLight(0xf59e0b, 1.4, 28);
+    plazaLight.position.set(0, 8, 0);
+    scene.add(plazaLight);
+
+    const skyUniforms = {
+      uTop: { value: new THREE.Color(0x4db8e8) },
+      uHorizon: { value: new THREE.Color(0xe7f3ff) },
+      uBottom: { value: new THREE.Color(0x87c5c0) }
+    };
+    const skyMat = new THREE.ShaderMaterial({
+      uniforms: skyUniforms,
+      side: THREE.BackSide,
+      depthWrite: false,
+      vertexShader: `varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader: `
+        varying vec3 vP; uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uBottom;
+        void main(){
+          float h = normalize(vP).y;
+          vec3 col = mix(uHorizon, uTop, smoothstep(0.0, 1.0, h));
+          col = mix(uBottom, col, smoothstep(-0.35, 0.12, h));
+          gl_FragColor = vec4(col, 1.0);
+        }`
+    });
+    scene.add(new THREE.Mesh(new THREE.SphereGeometry(180, 32, 24), skyMat));
+
+    const sunMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(3.2, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xfff3c4 })
+    );
+    scene.add(sunMesh);
+
+    const waterUniforms = {
+      uTime: { value: 0 },
+      uDeep: { value: new THREE.Color(0x0b4a6a) },
+      uShallow: { value: new THREE.Color(0x3ec6c9) },
+      uSun: { value: new THREE.Color(0xffe7a8) }
+    };
+    const waterMat = new THREE.ShaderMaterial({
+      uniforms: waterUniforms,
+      transparent: true,
+      vertexShader: `
+        uniform float uTime; varying vec2 vUv; varying float vW;
+        void main(){
+          vUv = uv;
+          vec3 p = position;
+          float w = sin(p.x*0.18 + uTime*0.7)*0.18 + cos(p.y*0.16 + uTime*0.55)*0.14;
+          p.z += w;
+          vW = w;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0);
+        }`,
+      fragmentShader: `
+        uniform vec3 uDeep; uniform vec3 uShallow; uniform vec3 uSun; uniform float uTime;
+        varying vec2 vUv; varying float vW;
+        void main(){
+          float foam = smoothstep(0.12, 0.22, vW);
+          vec3 col = mix(uDeep, uShallow, vUv.y*0.35 + 0.4 + vW*0.5);
+          col += uSun * foam * 0.35;
+          float spark = pow(max(sin(vUv.x*80.0 + uTime*2.0)*sin(vUv.y*70.0 - uTime), 0.0), 18.0);
+          col += spark * 0.45;
+          gl_FragColor = vec4(col, 0.92);
+        }`
+    });
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(220, 220, 90, 90), waterMat);
+    water.rotation.x = -Math.PI / 2;
+    water.position.y = 0;
+    water.receiveShadow = true;
+    scene.add(water);
+
+    function mat(color, opts = {}) {
+      return new THREE.MeshStandardMaterial({
+        color, roughness: opts.roughness ?? 0.82, metalness: opts.metalness ?? 0.04,
+        emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.ei ?? 0
+      });
+    }
+    function addMesh(geo, material, parent, x, y, z, sx, sy, sz, shadow = true) {
+      const m = new THREE.Mesh(geo, material);
+      m.position.set(x, y, z);
+      if (sx !== undefined) m.scale.set(sx, sy ?? sx, sz ?? sx);
+      m.castShadow = shadow;
+      m.receiveShadow = true;
+      parent.add(m);
+      return m;
+    }
+
+    function makeIsland(w) {
+      const g = new THREE.Group();
+      g.position.set(Math.cos(w.angle) * w.radius, 0, Math.sin(w.angle) * w.radius);
+      g.userData.wonderId = w.id;
+
+      const ground = mat(w.sand);
+      const rock = mat(w.rock);
+      const veg = mat(w.color);
+
+      addMesh(new THREE.CylinderGeometry(7.4, 9.2, 1.6, 10), ground, g, 0, 0.3, 0);
+      addMesh(new THREE.SphereGeometry(6.4, 8, 6), veg, g, 0, 1.1, 0, 1.15, 0.42, 1.15, false);
+      addMesh(new THREE.ConeGeometry(2.6, 3.4, 6), rock, g, 2.4, 2.4, -1.6);
+      addMesh(new THREE.ConeGeometry(1.8, 2.4, 5), rock, g, -2.8, 1.9, 1.8);
+
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2 + w.id;
+        const r = 4.2 + (i % 3) * 0.7;
+        const trunk = mat(0x5a3a22);
+        const leaf = mat(w.color);
+        const tx = Math.cos(a) * r, tz = Math.sin(a) * r;
+        if (w.id === 2) {
+          addMesh(new THREE.SphereGeometry(0.28, 5, 4), rock, g, tx, 1.15, tz);
+        } else {
+          addMesh(new THREE.CylinderGeometry(0.08, 0.12, 0.7, 5), trunk, g, tx, 1.45, tz);
+          addMesh(new THREE.ConeGeometry(0.45, 1.1, 6), leaf, g, tx, 2.15, tz);
+        }
+      }
+
+      const monument = buildMonument(w);
+      monument.position.y = 1.35;
+      monument.userData.wonderId = w.id;
+      g.add(monument);
+      clickables.push(monument);
+
+      const pin = makePin(w);
+      pin.position.set(0, 8.2, 0);
+      pinGroup.add(pin);
+      pin.userData.wonderId = w.id;
+      const worldPin = new THREE.Vector3();
+      g.updateMatrixWorld(true);
+      pin.position.copy(g.position).add(new THREE.Vector3(0, 8.2, 0));
+      clickables.push(pin);
+
+      const look = new THREE.Vector3();
+      g.getWorldPosition(look);
+      look.y += 2.2;
+      w.look = look.clone();
+      const outward = new THREE.Vector3(Math.cos(w.angle), 0, Math.sin(w.angle));
+      w.cam = look.clone().add(outward.multiplyScalar(14)).add(new THREE.Vector3(0, 8, 4));
+
+      scene.add(g);
+      return g;
+    }
+
+    function buildMonument(w) {
+      switch (w.id) {
+        case 1: return greatWall();
+        case 2: return petra();
+        case 3: return redeemer();
+        case 4: return machu();
+        case 5: return pyramid();
+        case 6: return colosseum();
+        default: return taj();
+      }
+    }
+
+    function greatWall() {
+      const g = new THREE.Group();
+      const brick = mat(0x9a8a72);
+      const dark = mat(0x6e6252);
+      for (let i = -6; i <= 6; i++) {
+        const z = i * 0.72;
+        const y = Math.sin(i * 0.45) * 0.55 + 1.1;
+        addMesh(new THREE.BoxGeometry(0.55, 0.55, 0.78), brick, g, 0, y, z);
+        addMesh(new THREE.BoxGeometry(0.18, 0.32, 0.18), dark, g, -0.22, y + 0.38, z);
+        addMesh(new THREE.BoxGeometry(0.18, 0.32, 0.18), dark, g, 0.22, y + 0.38, z);
+        if (i % 3 === 0) {
+          addMesh(new THREE.BoxGeometry(1.05, 1.4, 1.05), brick, g, 0, y + 0.5, z);
+          addMesh(new THREE.BoxGeometry(1.15, 0.18, 1.15), dark, g, 0, y + 1.25, z);
+        }
+      }
+      g.rotation.y = 0.4;
+      return g;
+    }
+
+    function petra() {
+      const g = new THREE.Group();
+      const sand = mat(0xc57b58);
+      const deep = mat(0x8d4a36);
+      addMesh(new THREE.BoxGeometry(7.2, 5.6, 2.4), deep, g, 0, 2.6, -1.4);
+      addMesh(new THREE.BoxGeometry(4.2, 4.4, 1.1), sand, g, 0, 2.3, -0.15);
+      addMesh(new THREE.BoxGeometry(3.6, 1.4, 1.0), sand, g, 0, 4.7, -0.1);
+      addMesh(new THREE.ConeGeometry(0.55, 0.9, 4), sand, g, 0, 5.7, -0.1);
+      for (let i = -1.4; i <= 1.4; i += 0.7) {
+        addMesh(new THREE.CylinderGeometry(0.12, 0.14, 3.2, 8), mat(0xe0b08a), g, i, 2.2, 0.4);
+      }
+      addMesh(new THREE.BoxGeometry(1.1, 1.8, 0.4), deep, g, 0, 1.4, 0.45);
+      return g;
+    }
+
+    function redeemer() {
+      const g = new THREE.Group();
+      const stone = mat(0xe8e2d4);
+      addMesh(new THREE.ConeGeometry(2.4, 4.2, 7), mat(0x4a6b48), g, 0, 1.6, 0);
+      addMesh(new THREE.CylinderGeometry(0.38, 0.48, 2.6, 8), stone, g, 0, 4.6, 0);
+      addMesh(new THREE.BoxGeometry(3.4, 0.38, 0.38), stone, g, 0, 5.15, 0);
+      addMesh(new THREE.SphereGeometry(0.38, 10, 8), stone, g, 0, 6.05, 0);
+      addMesh(new THREE.BoxGeometry(0.42, 0.7, 0.28), stone, g, 0, 3.5, 0);
+      return g;
+    }
+
+    function machu() {
+      const g = new THREE.Group();
+      const stone = mat(0xb7b39a);
+      const moss = mat(0x5d7a55);
+      addMesh(new THREE.ConeGeometry(3.4, 4.8, 6), moss, g, 1.6, 2.0, -1.4);
+      for (let t = 0; t < 5; t++) {
+        addMesh(new THREE.BoxGeometry(5.2 - t * 0.55, 0.38, 2.4), stone, g, -0.4, 0.7 + t * 0.42, 0.6);
+      }
+      for (let i = 0; i < 6; i++) {
+        addMesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), stone, g, -1.8 + (i % 3) * 0.9, 2.5, (i < 3 ? 0.2 : 1.1));
+      }
+      addMesh(new THREE.BoxGeometry(1.4, 1.1, 1.1), stone, g, 0.2, 3.15, 0.4);
+      return g;
+    }
+
+    function pyramid() {
+      const g = new THREE.Group();
+      const lime = mat(0xd2b48c);
+      const dark = mat(0x9a7a4e);
+      for (let i = 0; i < 7; i++) {
+        const s = 5.4 - i * 0.68;
+        addMesh(new THREE.BoxGeometry(s, 0.48, s), i % 2 ? dark : lime, g, 0, 0.5 + i * 0.48, 0);
+      }
+      addMesh(new THREE.BoxGeometry(1.15, 0.7, 1.15), lime, g, 0, 4.05, 0);
+      addMesh(new THREE.BoxGeometry(0.7, 0.18, 4.8), dark, g, 0, 0.55, 0);
+      return g;
+    }
+
+    function colosseum() {
+      const g = new THREE.Group();
+      const tra = mat(0xd2b48c);
+      const shade = mat(0xb08968);
+      for (let tier = 0; tier < 3; tier++) {
+        const n = 18;
+        const y = 0.55 + tier * 0.72;
+        const rx = 3.3 - tier * 0.12;
+        const rz = 2.55 - tier * 0.1;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          const m = addMesh(new THREE.BoxGeometry(0.38, 0.7, 0.28), i % 2 ? shade : tra, g, Math.cos(a) * rx, y, Math.sin(a) * rz);
+          m.lookAt(0, y, 0);
+        }
+      }
+      addMesh(new THREE.CylinderGeometry(1.6, 1.6, 0.2, 24), mat(0x6a5a48), g, 0, 0.35, 0, 1.4, 1, 1.05, false);
+      return g;
+    }
+
+    function taj() {
+      const g = new THREE.Group();
+      const marble = mat(0xf4f1ea, { roughness: 0.35, metalness: 0.08 });
+      const inlay = mat(0xc9a227, { roughness: 0.4, metalness: 0.3 });
+      const waterC = mat(0x4ec4c8, { roughness: 0.2 });
+      addMesh(new THREE.BoxGeometry(6.4, 0.22, 8.4), mat(0x6f9a6a), g, 0, 0.2, 0.4, 1, 1, 1, false);
+      addMesh(new THREE.BoxGeometry(1.1, 0.08, 4.6), waterC, g, 0, 0.36, 2.2, 1, 1, 1, false);
+      addMesh(new THREE.BoxGeometry(3.4, 2.1, 3.4), marble, g, 0, 1.4, -0.6);
+      addMesh(new THREE.SphereGeometry(1.15, 16, 12), marble, g, 0, 3.15, -0.6);
+      addMesh(new THREE.ConeGeometry(0.22, 0.7, 8), inlay, g, 0, 4.35, -0.6);
+      const minis = [[-2.2, -2.4], [2.2, -2.4], [-2.2, 1.1], [2.2, 1.1]];
+      minis.forEach(([x, z]) => {
+        addMesh(new THREE.CylinderGeometry(0.16, 0.2, 3.1, 8), marble, g, x, 1.7, z);
+        addMesh(new THREE.SphereGeometry(0.22, 10, 8), marble, g, x, 3.4, z);
+      });
+      return g;
+    }
+
+    function makePin(w) {
+      const g = new THREE.Group();
+      const glow = mat(w.color, { emissive: w.color, ei: 0.55, roughness: 0.3 });
+      addMesh(new THREE.SphereGeometry(0.28, 12, 10), glow, g, 0, 0, 0, 1, 1, 1, false);
+      addMesh(new THREE.ConeGeometry(0.18, 0.7, 8), glow, g, 0, -0.55, 0, 1, 1, 1, false).rotation.x = Math.PI;
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 20), new THREE.MeshBasicMaterial({ color: w.color, side: THREE.DoubleSide, transparent: true, opacity: 0.7 }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = -0.9;
+      g.add(ring);
+      g.userData.pulse = ring;
+      return g;
+    }
+
+    function makeHub() {
+      const g = new THREE.Group();
+      const gold = mat(0xd4a017, { roughness: 0.28, metalness: 0.55, emissive: 0x5a3a00, ei: 0.2 });
+      const marble = mat(0xe8e4d8, { roughness: 0.4 });
+      addMesh(new THREE.CylinderGeometry(6.2, 6.8, 0.5, 12), marble, g, 0, 0.55, 0);
+      addMesh(new THREE.CylinderGeometry(4.4, 4.6, 0.28, 32), gold, g, 0, 0.86, 0);
+      const rose = new THREE.Mesh(new THREE.RingGeometry(1.6, 2.1, 6), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.4, roughness: 0.3 }));
+      rose.rotation.x = -Math.PI / 2;
+      rose.position.y = 1.05;
+      g.add(rose);
+
+      const armillary = new THREE.Group();
+      armillary.position.y = 3.4;
+      const ringGeo = new THREE.TorusGeometry(1.6, 0.06, 8, 48);
+      const r1 = new THREE.Mesh(ringGeo, gold); armillary.add(r1);
+      const r2 = new THREE.Mesh(ringGeo, gold); r2.rotation.x = Math.PI / 2; armillary.add(r2);
+      const r3 = new THREE.Mesh(ringGeo, gold); r3.rotation.y = Math.PI / 2; armillary.add(r3);
+      addMesh(new THREE.SphereGeometry(0.45, 16, 12), mat(0x7dd3fc, { emissive: 0x1d4ed8, ei: 0.6, metalness: 0.3, roughness: 0.25 }), armillary, 0, 0, 0, 1, 1, 1, false);
+      g.add(armillary);
+      g.userData.armillary = armillary;
+
+      for (let i = 0; i < 7; i++) {
+        const a = i * Math.PI * 2 / 7;
+        addMesh(new THREE.BoxGeometry(0.18, 1.4, 0.18), gold, g, Math.cos(a) * 5.2, 1.4, Math.sin(a) * 5.2);
+      }
+      scene.add(g);
+      clickables.push(g);
+      g.userData.wonderId = 0;
+      return g;
+    }
+
+    const hub = makeHub();
+    WONDERS.forEach(makeIsland);
+
+    const pCount = 420;
+    const pGeo = new THREE.BufferGeometry();
+    const pPos = new Float32Array(pCount * 3);
+    for (let i = 0; i < pCount; i++) {
+      pPos[i * 3] = (Math.random() - 0.5) * 90;
+      pPos[i * 3 + 1] = 2 + Math.random() * 28;
+      pPos[i * 3 + 2] = (Math.random() - 0.5) * 90;
+    }
+    pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+    const sparks = new THREE.Points(pGeo, new THREE.PointsMaterial({
+      color: 0xffe7a8, size: 0.12, transparent: true, opacity: 0.75, depthWrite: false
+    }));
+    scene.add(sparks);
+
+    function easeInOut(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
+    function flyTo(id) {
+      const data = id === 0 ? WORLD : WONDERS[id - 1];
+      selected = id;
+      controls.autoRotate = id === 0 && !touring;
+      const fromP = camera.position.clone();
+      const fromT = controls.target.clone();
+      fly = {
+        t: 0, dur: reduced ? 0.01 : 1.65,
+        fromP, fromT, toP: data.cam.clone(), toT: data.look.clone()
+      };
+      updateCard(data);
+      document.getElementById("stSector").textContent = data.code;
+      [...document.querySelectorAll("#jumps button")].forEach((b, i) => {
+        b.classList.toggle("active", i === id);
+      });
+    }
+
+    function updateCard(data) {
+      const card = document.getElementById("card");
+      card.classList.add("open");
+      document.getElementById("cardKicker").textContent = data.kicker;
+      document.getElementById("cardTitle").textContent = data.name;
+      document.getElementById("cardSub").textContent = data.subtitle;
+      document.getElementById("cardBio").textContent = data.bio;
+      document.getElementById("mEra").textContent = data.era;
+      document.getElementById("mCiv").textContent = data.civ;
+      document.getElementById("mMat").textContent = data.material;
+      document.getElementById("mBio").textContent = data.biome;
+    }
+
+    function setGolden(on) {
+      golden = on;
+      document.getElementById("btnHour").classList.toggle("active", on);
+      document.getElementById("btnHour").setAttribute("aria-pressed", String(on));
+      document.getElementById("stLight").textContent = on ? "GOLDEN HOUR" : "NOON";
+      if (on) {
+        sun.color.set(0xffb060);
+        sun.intensity = 1.7;
+        sun.position.set(-38, 18, 28);
+        hemi.color.set(0xffc38a);
+        hemi.groundColor.set(0x5a3020);
+        hemi.intensity = 0.42;
+        ambient.color.set(0xff8a4a);
+        ambient.intensity = 0.22;
+        skyUniforms.uTop.value.set(0x2a3a78);
+        skyUniforms.uHorizon.value.set(0xff9a4a);
+        skyUniforms.uBottom.value.set(0xc45a3a);
+        scene.fog.color.set(0xc4784a);
+        scene.fog.density = 0.011;
+        waterUniforms.uDeep.value.set(0x14324a);
+        waterUniforms.uShallow.value.set(0xe08a4a);
+        waterUniforms.uSun.value.set(0xffc070);
+        renderer.toneMappingExposure = 1.18;
+        sunMesh.material.color.set(0xff9a40);
+        plazaLight.color.set(0xffb347);
+      } else {
+        sun.color.set(0xfff1d6);
+        sun.intensity = 1.35;
+        sun.position.set(40, 55, 22);
+        hemi.color.set(0x9fd7ff);
+        hemi.groundColor.set(0x3a4a2a);
+        hemi.intensity = 0.55;
+        ambient.color.set(0x6a7a90);
+        ambient.intensity = 0.28;
+        skyUniforms.uTop.value.set(0x4db8e8);
+        skyUniforms.uHorizon.value.set(0xe7f3ff);
+        skyUniforms.uBottom.value.set(0x87c5c0);
+        scene.fog.color.set(0x7ec8e3);
+        scene.fog.density = 0.0085;
+        waterUniforms.uDeep.value.set(0x0b4a6a);
+        waterUniforms.uShallow.value.set(0x3ec6c9);
+        waterUniforms.uSun.value.set(0xffe7a8);
+        renderer.toneMappingExposure = 1.05;
+        sunMesh.material.color.set(0xfff3c4);
+        plazaLight.color.set(0xf59e0b);
+      }
+    }
+
+    function pick(ev) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const x = (ev.clientX ?? ev.touches?.[0]?.clientX) - rect.left;
+      const y = (ev.clientY ?? ev.touches?.[0]?.clientY) - rect.top;
+      pointer.x = (x / rect.width) * 2 - 1;
+      pointer.y = -(y / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(clickables, true);
+      if (!hits.length) return;
+      let obj = hits[0].object;
+      while (obj && obj.userData.wonderId === undefined) obj = obj.parent;
+      if (obj && obj.userData.wonderId !== undefined) flyTo(obj.userData.wonderId);
+    }
+
+    renderer.domElement.addEventListener("pointerup", (e) => {
+      if (e.detail === 0) return;
+      if (Math.hypot(e.movementX || 0, e.movementY || 0) > 4) return;
+      pick(e);
+    });
+
+    const jumps = document.getElementById("jumps");
+    [WORLD, ...WONDERS].forEach((w) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = String(w.id);
+      b.title = w.name;
+      b.setAttribute("aria-label", "Jump to " + w.name);
+      b.addEventListener("click", () => flyTo(w.id));
+      jumps.appendChild(b);
+    });
+    jumps.children[0].classList.add("active");
+
+    document.getElementById("btnWorld").addEventListener("click", () => flyTo(0));
+    document.getElementById("btnNext").addEventListener("click", () => flyTo((selected + 1) % 8));
+    document.getElementById("btnPrev").addEventListener("click", () => flyTo((selected + 7) % 8));
+    document.getElementById("btnHour").addEventListener("click", () => setGolden(!golden));
+    document.getElementById("btnPins").addEventListener("click", () => {
+      pinGroup.visible = !pinGroup.visible;
+      document.getElementById("btnPins").classList.toggle("active", pinGroup.visible);
+      document.getElementById("btnPins").setAttribute("aria-pressed", String(pinGroup.visible));
+    });
+    document.getElementById("btnHud").addEventListener("click", () => {
+      const hud = document.getElementById("hud");
+      const hide = !hud.classList.contains("hidden");
+      hud.classList.toggle("hidden", hide);
+      document.getElementById("btnHud").classList.toggle("active", !hide);
+      if (hide) {
+        const reveal = document.createElement("button");
+        reveal.id = "hudReveal";
+        reveal.textContent = "Show HUD";
+        reveal.style.cssText = "position:fixed;top:16px;right:16px;z-index:30;pointer-events:auto";
+        reveal.addEventListener("click", () => {
+          hud.classList.remove("hidden");
+          document.getElementById("btnHud").classList.add("active");
+          reveal.remove();
+        });
+        document.body.appendChild(reveal);
+      }
+    });
+
+    document.getElementById("btnTour").addEventListener("click", toggleTour);
+    function toggleTour() {
+      touring = !touring;
+      document.getElementById("btnTour").classList.toggle("active", touring);
+      document.getElementById("btnTour").setAttribute("aria-pressed", String(touring));
+      if (touring) {
+        tourTimer = 0;
+        flyTo(0);
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key >= "0" && e.key <= "7") flyTo(Number(e.key));
+      if (e.key === "t" || e.key === "T") setGolden(!golden);
+      if (e.key === "g" || e.key === "G") toggleTour();
+      if (e.key === "p" || e.key === "P") document.getElementById("btnPins").click();
+      if (e.key === "h" || e.key === "H") document.getElementById("btnHud").click();
+      if (e.key === "Escape") flyTo(0);
+      if (e.key === "ArrowRight") flyTo((selected + 1) % 8);
+      if (e.key === "ArrowLeft") flyTo((selected + 7) % 8);
+    });
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    updateCard(WORLD);
+    document.getElementById("card").classList.add("open");
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      const t = clock.elapsedTime;
+      waterUniforms.uTime.value = t;
+      if (hub.userData.armillary) {
+        hub.userData.armillary.rotation.y = t * 0.35;
+        hub.userData.armillary.rotation.x = Math.sin(t * 0.2) * 0.2;
+      }
+      pinGroup.children.forEach((p, i) => {
+        p.position.y = 8.2 + Math.sin(t * 2 + i) * 0.25;
+        if (p.userData.pulse) {
+          const s = 1 + Math.sin(t * 3 + i) * 0.18;
+          p.userData.pulse.scale.set(s, s, s);
+        }
+      });
+      const arr = sparks.geometry.attributes.position.array;
+      for (let i = 0; i < pCount; i++) {
+        arr[i * 3 + 1] += Math.sin(t * 0.4 + i) * 0.004;
+        if (arr[i * 3 + 1] > 32) arr[i * 3 + 1] = 2;
+      }
+      sparks.geometry.attributes.position.needsUpdate = true;
+      sparks.rotation.y = t * 0.02;
+      sunMesh.position.copy(sun.position).setLength(92);
+
+      if (fly) {
+        fly.t += dt;
+        const k = Math.min(1, fly.t / fly.dur);
+        const e = easeInOut(k);
+        camera.position.lerpVectors(fly.fromP, fly.toP, e);
+        controls.target.lerpVectors(fly.fromT, fly.toT, e);
+        if (k >= 1) fly = null;
+      }
+
+      if (touring && !fly) {
+        tourTimer += dt;
+        if (tourTimer > 4.2) {
+          tourTimer = 0;
+          flyTo((selected + 1) % 8);
+        }
+      }
+
+      const alt = camera.position.length().toFixed(1);
+      document.getElementById("stAlt").textContent = alt + " km";
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+    setTimeout(() => document.getElementById("loader").classList.add("done"), 700);
+  </script>
+</body>
+</html>
